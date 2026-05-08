@@ -416,6 +416,8 @@ Watches that require "reverse" pairing (i.e. the watch advertises as a device th
 
 ### IRK Not Captured After Pairing
 
+Not all devices use Bluetooth security when pairing to some accessories. For example, some Garmin watches are known to use a fixed BLE address, and thus do not have an IRK value. The ESP32 logs and the Home Assistant IRK sensor will indicate that no IRK was used.
+
 - After pairing, **forget/unpair the BLE device** from your device's Bluetooth settings
 - Turn Bluetooth OFF on your device
 - Modify the BLE Device Name on the ESPHome device page
