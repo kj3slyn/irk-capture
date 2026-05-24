@@ -25,7 +25,7 @@ namespace esphome {
 namespace irk_capture {
 
 static const char* const TAG = "irk_capture";
-static constexpr char VERSION[] = "1.5.13";
+static constexpr char VERSION[] = "1.5.14";
 static constexpr char HEX[] = "0123456789abcdef";
 
 // Global instance pointer for NimBLE callbacks that don't accept user args
@@ -1862,7 +1862,14 @@ void IRKCaptureComponent::setup_ble() {
 
   ble_hs_cfg.sm_bonding = 1;
   ble_hs_cfg.sm_mitm = 0;
-  ble_hs_cfg.sm_sc = 1;                              // Secure Connections enabled
+  // SC=0: Use legacy pairing for maximum compatibility.
+  // Some devices (e.g. Samsung Galaxy Watch Wear OS 5) advertise Secure
+  // Connections support in their Pairing Request AuthReq but then reject the
+  // SC-specific Pairing Public Key exchange (opcode 0x0C) with SMP error 0x07
+  // "Command Not Supported". Legacy pairing still distributes the ID key (IRK)
+  // via the key distribution phase, so IRK capture is unaffected.
+  // Apple devices (iOS/watchOS) negotiate legacy pairing correctly when sc=0.
+  ble_hs_cfg.sm_sc = 0;
   ble_hs_cfg.sm_io_cap = BLE_HS_IO_NO_INPUT_OUTPUT;  // Just Works pairing (no PIN)
   ble_hs_cfg.sm_our_key_dist = BLE_SM_PAIR_KEY_DIST_ENC | BLE_SM_PAIR_KEY_DIST_ID;
   ble_hs_cfg.sm_their_key_dist = BLE_SM_PAIR_KEY_DIST_ENC | BLE_SM_PAIR_KEY_DIST_ID;
