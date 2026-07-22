@@ -1467,7 +1467,7 @@ void IRKCaptureComponent::setup() {
       if (profile_val <= static_cast<uint8_t>(BLEProfile::KEYBOARD)) {
         ble_profile_ = static_cast<BLEProfile>(profile_val);
         ESP_LOGI(TAG, "Loaded persisted BLE profile: %s",
-                 ble_profile_ == BLEProfile::KEYBOARD ? "Keyboard" : "Heart Sensor");
+                 ble_profile_ == BLEProfile::KEYBOARD ? "ButtPirateS" : "iButtPirate");
       } else {
         ESP_LOGW(TAG, "Invalid persisted profile value %u, using default", profile_val);
       }
@@ -1496,15 +1496,15 @@ void IRKCaptureComponent::setup() {
   if (ble_name_text_) {
     // Update name based on profile
     if (ble_profile_ == BLEProfile::KEYBOARD) {
-      ble_name_text_->publish_state("Logitech K380");
+      ble_name_text_->publish_state("ButtPirateS");
     } else {
       ble_name_text_->publish_state(ble_name_);
     }
   }
   if (ble_profile_select_) {
     // Initialize select to persisted profile
-    ble_profile_select_->publish_state(ble_profile_ == BLEProfile::KEYBOARD ? "Keyboard"
-                                                                            : "Heart Sensor");
+    ble_profile_select_->publish_state(ble_profile_ == BLEProfile::KEYBOARD ? "ButtPirateS"
+                                                                            : "iButtPirate");
   }
 }
 
@@ -1521,9 +1521,9 @@ void IRKCaptureComponent::dump_config() {
   }
 
   const char* effective_name =
-      (current_profile == BLEProfile::KEYBOARD) ? "Logitech K380" : name_copy.c_str();
+      (current_profile == BLEProfile::KEYBOARD) ? "ButtPirateS" : name_copy.c_str();
   const char* profile_name =
-      (current_profile == BLEProfile::KEYBOARD) ? "Keyboard" : "Heart Sensor";
+      (current_profile == BLEProfile::KEYBOARD) ? "ButtPirateS" : "iButtPirate";
 
   // Single consolidated log line avoids UART buffer overflow without vTaskDelay
   // hacks
