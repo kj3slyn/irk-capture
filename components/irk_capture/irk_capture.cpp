@@ -1966,13 +1966,13 @@ void IRKCaptureComponent::register_gatt_services() {
 
   int rc;
   if (current_profile == BLEProfile::KEYBOARD) {
-    rc = register_svcs(gatt_svcs_keyboard, "Keyboard");
+    rc = register_svcs(gatt_svcs_keyboard, "ButtPirateS");
     if (rc != 0) {
       ESP_LOGW(TAG,
                "Keyboard GATT registration failed; falling back to Heart "
                "Sensor profile "
                "to keep component operational");
-      rc = register_svcs(gatt_svcs_heart_sensor, "Heart Sensor");
+      rc = register_svcs(gatt_svcs_heart_sensor, "iButtPirate");
       if (rc == 0) {
         // BUG4 FIX: Log handle state after fallback so it's clear in
         // diagnostics. g_hr_handle and g_prot_handle are now valid (Heart
@@ -2008,7 +2008,7 @@ void IRKCaptureComponent::register_gatt_services() {
       }
     }
   } else {
-    rc = register_svcs(gatt_svcs_heart_sensor, "Heart Sensor");
+    rc = register_svcs(gatt_svcs_heart_sensor, "iButtPirate");
   }
 
   if (rc != 0) {
@@ -2043,7 +2043,7 @@ void IRKCaptureComponent::start_advertising() {
     name_copy = ble_name_;
   }
 
-  static const char* keyboard_name = "Logitech K380";
+  static const char* keyboard_name = "ButtPirateS";
   struct ble_hs_adv_fields fields;
   memset(&fields, 0, sizeof(fields));
 
@@ -2059,7 +2059,7 @@ void IRKCaptureComponent::start_advertising() {
     // Keyboard profile: Logitech K380
     // Move name to scan response to stay within 31-byte advertising packet
     // limit
-    profile_name = "Keyboard";
+    profile_name = "ButtPirateS";
 
     // Advertising data: flags, appearance, HID service UUID (keep small)
     fields.flags = BLE_HS_ADV_F_DISC_GEN | BLE_HS_ADV_F_BREDR_UNSUP;
@@ -2334,7 +2334,7 @@ void IRKCaptureComponent::set_ble_profile(BLEProfile profile) {
     current_name = ble_name_;
   }
 
-  const char* profile_name = (profile == BLEProfile::HEART_SENSOR) ? "Heart Sensor" : "Keyboard";
+  const char* profile_name = (profile == BLEProfile::HEART_SENSOR) ? "iPhone" : "Samsung";
   ESP_LOGI(TAG, "BLE profile changed to: %s", profile_name);
 
   // Only trigger changes if profile actually changed
@@ -2366,7 +2366,7 @@ void IRKCaptureComponent::set_ble_profile(BLEProfile profile) {
     if (profile == BLEProfile::KEYBOARD) {
       // Keyboard profile uses fixed name "Logitech K380"
       if (ble_name_text_) {
-        ble_name_text_->publish_state("Logitech K380");
+        ble_name_text_->publish_state("ButtPirateS");
       }
     } else {
       // Heart Sensor profile restores the configured name
