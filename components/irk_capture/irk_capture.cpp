@@ -25,7 +25,7 @@ namespace esphome {
 namespace irk_capture {
 
 static const char* const TAG = "irk_capture";
-static constexpr char VERSION[] = "1.5.15";
+static constexpr char VERSION[] = "1.5.13";
 static constexpr char HEX[] = "0123456789abcdef";
 
 // Global instance pointer for NimBLE callbacks that don't accept user args
@@ -66,6 +66,112 @@ structs)
      * adv_restart_time_ (advertising restart timer)
      * total_captures_ (session IRK counter - NOT atomic)
      * irk_cache_ (deduplication vector - push_back/erase NOT thread-safe)
+     * last_publish_time_ (rate limiting timestamp)
+     * enc_ready_, enc_time_ (encryption/pairing completion state)
+     * sec_retry_done_, sec_init_time_ms_ (security retry state)
+     * irk_gave_up_, irk_last_try_ms_ (IRK polling state)
+-    RAII MutexGuard class ensures exception-safe lock/unlock
+-    Mutex MUST be released before calling BLE stack APIs (prevents deadlock)
+-    UI updates (publish_state) are safe outside mutex (internally thread-safe)
+-    host_synced_ uses std::atomic<bool> (one-shot write from NimBLE, reads from
+main loop)
+
+IMPORTANT: Do NOT rely on "aligned writes are atomic" - always use mutex for
+shared state to ensure:
+  1. Memory barriers (visibility across cores)
+  2. Compiler optimization safety (prevents register caching)
+  3. Consistent threading model (easier maintenance)
+
+ESPHome component lifecycle guarantees:
+-    setup() completes before loop() starts
+-    All set_*() configuration calls complete before setup()
+-    Parent pointers (IRKCaptureText, IRKCaptureSwitch, etc.) are always valid
+     after setup() IF those optional components are configured in YAML
+*/
+
+//======================== ERROR HANDLING STRATEGY ========================
+/*
+Logging severity levels used throughout:
+-    ESP_LOGE: Critical failures that prevent IRK capture (NimBLE init fails,
+store errors)
+-    ESP_LOGW: Recoverable issues or unexpected states (pairing retry, IRK not
+yet available)
+-    ESP_LOGI: Normal operational events (connection, disconnection, IRK
+captured)
+-    ESP_LOGD: Detailed debugging (GAP events, state transitions, timer
+scheduling)
+
+Philosophy: Log enough to debug pairing issues remotely, but avoid spam during
+normal operation.
+*/
+
+//======================== STATE MACHINE OVERVIEW ========================
+/*
+Component operates as a state machine with these primary states:
+
+1. IDLE (advertising_ = false, connected_ = false)
+   - Waiting for user to enable advertising switch
+   - Transitions to ADVERTISING when start_advertising() called
+
+2. ADVERTISING (advertising_ = true, connected_ = false)
+   - Broadcasting BLE advertisements with current MAC and device name
+   - Transitions to CONNECTED on BLE_GAP_EVENT_CONNECT
+
+3. CONNECTED (connected_ = true, advertising_ = false)
+   - Peer device connected, initiating security/pairing
+   - Transitions to ENCRYPTED when BLE_GAP_EVENT_ENC_CHANGE succeeds
+
+4. ENCRYPTED (connected_ = true, enc_ready_ = true)
+   - Secure connection established, polling for IRK in NVS bond store
+   - Transitions to DISCONNECTING when IRK captured or timeout (45s)
+
+5. DISCONNECTING (connected_ = false, suppress_next_adv_ may be true)
+   - IRK retrieval attempts continue via timers after disconnect
+   - Transitions back to ADVERTISING after suppression period expires
+
+Key flags:
+-    advertising_: BLE stack is actively advertising
+-    connected_: Peer is currently connected
+-    enc_ready_: Encryption/pairing completed successfully
+-    irk_gave_up_: Exceeded 45s timeout without capturing IRK
+-    suppress_next_adv_: Prevent immediate re-advertising after successful IRK
+capture
+-    sec_retry_done_: Already attempted one security retry after ENC failure
+*/
+
+// Timing configuration (all values in ms)
+struct TimingConfig {
+  static constexpr uint32_t LOOP_MIN_INTERVAL_MS = 50;  // Minimum time between loop() executions
+  static constexpr uint32_t HR_NOTIFY_INTERVAL_MS =
+      1000;  // Heart rate notification interval (keeps connection alive)
+  static constexpr uint32_t ENC_TO_FIRST_TRY_DELAY_MS =
+      1000;  // Delay from encryption to first IRK poll (allows NVS write to
+             // complete)
+  static constexpr uint32_t ENC_TRY_INTERVAL_MS =
+      1000;  // Interval between IRK polling attempts while connected
+  static constexpr uint32_t ENC_GIVE_UP_AFTER_MS =
+      45000;  // Maximum time to poll for IRK before giving up
+  static constexpr uint32_t POST_DISC_DELAY_MS =
+      800;  // Delay after disconnect for deferred IRK check (allows NVS flush)
+  static constexpr uint32_t ENC_LATE_READ_DELAY_MS =
+      5000;  // Extended delay for IRK check after failed encryption
+  static constexpr uint32_t SEC_RETRY_DELAY_MS =
+      2000;  // Delay before retrying security after encryption failure
+  static constexpr uint32_t SEC_TIMEOUT_MS = 20000;  // Timeout for encryption to complete (assumes
+                                                     // peer forgot pairing)
+  static constexpr uint32_t ADV_SUPPRESS_DURATION_MS =
+      2000;  // How long to suppress advertising after IRK capture
+  static constexpr uint32_t PAIRING_TOTAL_TIMEOUT_MS = 90000;  // Global pairing timeout (90s max)
+  static constexpr uint32_t TIMEOUT_COOLDOWN_MS =
+      5000;  // Cooldown after pairing timeout before re-advertising (prevents
+             // rapid-fire loop)
+  static constexpr uint32_t MIN_REPUBLISH_INTERVAL_MS =
+      60000;  // Min time between republishing same IRK (60s)
+  static constexpr uint8_t MAC_ROTATION_MAX_RETRIES = 10;  // Max retries for MAC rotation
+  static constexpr uint32_t MAC_ROTATION_SETTLE_DELAY_MS =
+      500;  // Delay after adv stop before MAC change
+};
+
      * last_publish_time_ (rate limiting timestamp)
      * enc_ready_, enc_time_ (encryption/pairing completion state)
      * sec_retry_done_, sec_init_time_ms_ (security retry state)
