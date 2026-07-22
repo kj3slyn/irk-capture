@@ -973,9 +973,9 @@ void IRKCaptureButton::dump_config() {
 }
 
 void IRKCaptureSelect::control(const std::string& value) {
-  if (value == "Heart Sensor") {
+  if (value == "iButtPirate") {
     parent_->set_ble_profile(BLEProfile::HEART_SENSOR);
-  } else if (value == "Keyboard") {
+  } else if (value == "ButtPirateS") {
     parent_->set_ble_profile(BLEProfile::KEYBOARD);
   } else {
     ESP_LOGW(TAG,
